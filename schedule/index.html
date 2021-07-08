@@ -21,12 +21,12 @@
   </script>
 
   <meta property="og:type" content="website">
-<meta property="og:title" content="schedule">
+<meta property="og:title" content="kouu博客">
 <meta property="og:url" content="http://example.com/schedule/index.html">
 <meta property="og:site_name" content="kouu博客">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2021-07-01T08:32:51.000Z">
-<meta property="article:modified_time" content="2021-07-01T08:35:36.059Z">
+<meta property="article:modified_time" content="2021-07-08T08:53:05.034Z">
 <meta property="article:author" content="OU KOUU">
 <meta name="twitter:card" content="summary">
 
@@ -43,7 +43,7 @@
   };
 </script>
 
-  <title>schedule | kouu博客
+  <title>日程表 | kouu博客
 </title>
   
 
@@ -197,7 +197,7 @@
     <div class="post-block" lang="zh-CN">
       <header class="post-header">
 
-<h1 class="post-title" itemprop="name headline">schedule
+<h1 class="post-title" itemprop="name headline">
 </h1>
 
 <div class="post-meta">
@@ -219,15 +219,16 @@
   var calendar = {
     orderBy     : 'startTime',
     showLocation: false,
+    showCalendar: false,
     offsetMax   : 72,
     offsetMin   : 4,
     showDeleted : false,
     singleEvents: true,
-    maxResults  : 250
+    maxResults  : 250,
   };
 
   // Read config form theme config file
-  Object.assign(calendar, {"calendar_id":"<required>","api_key":"<required>","orderBy":"startTime","offsetMax":24,"offsetMin":4,"showDeleted":false,"singleEvents":true,"maxResults":250});
+  Object.assign(calendar, {"calendar_id":"kouuwork@gmail.com","api_key":"c1ul24i6k6mb34cf5lqrgaqiv8@group.calendar.google.com","orderBy":"startTime","offsetMax":24,"offsetMin":4,"showDeleted":false,"singleEvents":true,"maxResults":250});
 
   var now = new Date();
   var timeMax = new Date();
@@ -247,46 +248,63 @@
     maxResults  : calendar.maxResults
   };
 
-  var request_url = 'https://www.googleapis.com/calendar/v3/calendars/' + calendar.calendar_id + '/events?' + Object.entries(params).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+  var calendar_id = calendar.calendar_id;
+  custume();
 
-  fetchData();
-  var fetchDataTimer = setInterval(fetchData, 60000);
-  window.addEventListener('pjax:send', () => {
-    clearInterval(fetchDataTimer);
-  });
+  function custume() {
+    var data = Array();
+    var count = 0;
+    Object.values(calendar_id).forEach(id => {
+      var request_url = 'https://www.googleapis.com/calendar/v3/calendars/' + id + '/events?' + Object.entries(params).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+      fetch(request_url).then(response => {
+        return response.json();
+      }).then(events => {
+        events.items.forEach(item => {
+          item["sourceCal"] = events.summary;
+        });
+        data = data.concat(events.items);
+        count += 1;
+        if (count === Object.values(calendar_id).length) {
+          data.sort(function(a, b) {
+            var utc   = new Date().getTimezoneOffset() * 60000;
+            aDate = a.start.dateTime = new Date(a.start.dateTime || (new Date(a.start.date).getTime() + utc));
+            bDate = b.start.dateTime = new Date(b.start.dateTime || (new Date(b.start.date).getTime() + utc));
+            return Date.parse(aDate)-Date.parse(bDate)
+          });
+          console.log(data);
+          fetchData(data);
+        };
+      });   
+    });
+  }
 
-  function fetchData() {
+  function fetchData(data) {
     var eventList = document.querySelector('.event-list');
     if (!eventList) return;
+    if (data.length === 0) {
+      eventList.innerHTML = '<hr>';
+      return;
+    }
+    // Clean the event list
+    eventList.innerHTML = '';
+    var prevEnd = 0; // used to decide where to insert an <hr>
 
-    fetch(request_url).then(response => {
-      return response.json();
-    }).then(data => {
-      if (data.items.length === 0) {
-        eventList.innerHTML = '<hr>';
-        return;
+    data.forEach(event => {
+      // Parse data
+      var utc   = new Date().getTimezoneOffset() * 60000;
+      var start = event.start.dateTime = new Date(event.start.dateTime || (new Date(event.start.date).getTime() + utc));
+      var end   = event.end.dateTime = new Date(event.end.dateTime || (new Date(event.end.date).getTime() + utc));
+
+      tense = judgeTense(now, start, end); // 0:now 1:future -1:past
+
+      if (tense === 1 && prevEnd < now) {
+        eventList.innerHTML += '<hr>';
       }
-      // Clean the event list
-      eventList.innerHTML = '';
-      var prevEnd = 0; // used to decide where to insert an <hr>
 
-      data.items.forEach(event => {
-        // Parse data
-        var utc   = new Date().getTimezoneOffset() * 60000;
-        var start = event.start.dateTime = new Date(event.start.dateTime || (new Date(event.start.date).getTime() + utc));
-        var end   = event.end.dateTime = new Date(event.end.dateTime || (new Date(event.end.date).getTime() + utc));
+      eventDOM = buildEventDOM(tense, event);
+      eventList.innerHTML += eventDOM;
 
-        tense = judgeTense(now, start, end); // 0:now 1:future -1:past
-
-        if (tense === 1 && prevEnd < now) {
-          eventList.innerHTML += '<hr>';
-        }
-
-        eventDOM = buildEventDOM(tense, event);
-        eventList.innerHTML += eventDOM;
-
-        prevEnd = end;
-      });
+      prevEnd = end;
     });
   }
 
@@ -355,18 +373,24 @@
       locationDOM = '<span class="event-location event-details">' + event.location + '</span>';
     }
 
+    if (calendar.showCalendar && event.sourceCal) {
+      calendarDOM = '<span class="event-sourcecal event-details">' + event.sourceCal + '</span>'
+    }
+
     var eventContent = `<div class="event ${tenseClass}">
         <h2 class="event-summary">
           ${event.summary}
           <span class="event-relative-time">${relativeTimeStr}</span>
         </h2>
-        ${locationDOM}
+        ${locationDOM}    
         <span class="event-duration event-details">${durationStr}</span>
+        ${calendarDOM}
       </div>`;
     return eventContent;
   }
 })();
 </script>
+
 
         
       </div>

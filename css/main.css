@@ -1175,7 +1175,7 @@ pre .javascript .function {
 }
 .links-of-author a::before,
 .links-of-author span.exturl::before {
-  background: #9ff;
+  background: #d18b57;
   border-radius: 50%;
   content: ' ';
   display: inline-block;
@@ -2064,6 +2064,9 @@ pre .javascript .function {
 }
 .event-list .event .event-details.event-location::before {
   content: '\f041';
+}
+.event-list .event .event-details.event-sourcecal::before {
+  content: '\f073';
 }
 .event-list .event .event-details.event-duration::before {
   content: '\f017';
